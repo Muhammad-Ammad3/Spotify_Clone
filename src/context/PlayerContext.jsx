@@ -7,13 +7,17 @@ import {
   useCallback,
 } from "react";
 
+import { songsData as localSongsData } from "../data/songs";
+
 const PlayerContext = createContext();
 
 export const usePlayer = () => {
   const context = useContext(PlayerContext);
+
   if (!context) {
     throw new Error("usePlayer must be used within PlayerProvider");
   }
+
   return context;
 };
 
@@ -23,6 +27,7 @@ export const PlayerProvider = ({ children }) => {
   const [currentTrack, setCurrentTrack] = useState(null);
   const [playStatus, setPlayStatus] = useState(false);
   const [loading, setLoading] = useState(true);
+
   const [time, setTime] = useState({
     currentTime: "00:00",
     totalTime: "00:00",
@@ -32,118 +37,84 @@ export const PlayerProvider = ({ children }) => {
 
   const formatTime = (seconds) => {
     if (!seconds || isNaN(seconds)) return "00:00";
+
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
+
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
 
   useEffect(() => {
-    const fetchSongs = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(
-          "https://corsproxy.io/?https://api.deezer.com/chart",
-        );
-        const data = await response.json();
+    try {
+      setLoading(true);
 
-        const fallbackSongs = [
-          "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-          "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-          "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-          "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
-          "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
-        ];
+      const formattedSongs = localSongsData.map((track, index) => {
+        const trackTitle = track.title || `Track ${index + 1}`;
+        const fileName = trackTitle.toLowerCase().replace(/\s+/g, '');
 
-        const tracks = (data.tracks?.data || []).map((track, index) => ({
-          id: track.id || index + 1,
-          title: track.title || "Unknown Track",
+        return {
+          id: track.id,
+          title: trackTitle,
           artist: track.artist?.name || "Unknown Artist",
           album: track.album?.title || "Unknown Album",
+          albumId: track.album?.id,
           duration: formatTime(track.duration),
           artwork:
             track.album?.cover_big ||
             track.album?.cover_medium ||
             "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=500&q=80",
-          preview: fallbackSongs[index % fallbackSongs.length],
-        }));
+          
+          preview: track.preview || `/songs/${fileName}.mp3`,
+        };
+      });
 
-        const albums = (data.albums?.data || []).slice(0, 5).map((album) => ({
-          id: album.id,
-          title: album.title,
-          artwork: album.cover_big,
-          description: `Top Album by ${album.artist?.name}`,
-          songs: tracks,
-        }));
+      setSongsData(formattedSongs);
 
-        setSongsData(tracks);
-        setAlbumsData(albums);
-        if (tracks.length > 0) {
-          setCurrentTrack(tracks[0]);
+      // 2. Har Album ke andar uske gane (songs array) filter karke dalna
+      const uniqueAlbums = [];
+      const albumIds = new Set();
+
+      localSongsData.forEach((item) => {
+        if (item.album && !albumIds.has(item.album.id)) {
+          albumIds.add(item.album.id);
+
+          const albumSongs = formattedSongs.filter(
+            (song) => song.albumId === item.album.id
+          );
+
+          uniqueAlbums.push({
+            id: item.album.id,
+            title: item.album.title,
+            artwork: item.album.cover_big || item.album.cover_medium,
+            description: `A collection of hits from ${item.artist?.name || "various artists"}.`,
+            songs: albumSongs, 
+          });
         }
-      } catch (error) {
-        console.log("Error:", error);
-        const demoSongs = [
-          {
-            id: 1,
-            title: "Dream Escape",
-            artist: "Alan Walker",
-            album: "Top Hits",
-            duration: "03:20",
-            artwork:
-              "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=500&q=80",
-            preview:
-              "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-          },
-          {
-            id: 2,
-            title: "Night Vibes",
-            artist: "Dua Lipa",
-            album: "Future Sounds",
-            duration: "04:10",
-            artwork:
-              "https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=500&q=80",
-            preview:
-              "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-          },
-          {
-            id: 3,
-            title: "Summer Beats",
-            artist: "The Weeknd",
-            album: "Chill Mix",
-            duration: "02:58",
-            artwork:
-              "https://images.unsplash.com/photo-1501612780327-45045538702b?w=500&q=80",
-            preview:
-              "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-          },
-        ];
-        setSongsData(demoSongs);
-        setAlbumsData([
-          {
-            id: 1,
-            title: "Today's Top Hits",
-            artwork:
-              "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=80",
-            description: "Trending Music Collection",
-            songs: demoSongs,
-          },
-        ]);
-        setCurrentTrack(demoSongs[0]);
-      } finally {
-        setLoading(false);
+      });
+
+      setAlbumsData(uniqueAlbums);
+
+      if (formattedSongs.length > 0) {
+        setCurrentTrack(formattedSongs[0]);
       }
-    };
-    fetchSongs();
+    } catch (error) {
+      console.log("Local Data Error:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentTrack) return;
+
     audio.src = currentTrack.preview;
     audio.load();
 
     if (playStatus) {
-      audio.play().catch((err) => console.log(err));
+      audio
+        .play()
+        .catch((err) => console.log("Play failed on track change:", err));
     }
   }, [currentTrack]);
 
@@ -152,7 +123,7 @@ export const PlayerProvider = ({ children }) => {
     if (!audio || !audio.src) return;
 
     if (playStatus) {
-      audio.play().catch((err) => console.log(err));
+      audio.play().catch((err) => console.log("Play failed on toggle:", err));
     } else {
       audio.pause();
     }
@@ -178,45 +149,55 @@ export const PlayerProvider = ({ children }) => {
     async (id) => {
       const track = songsData.find((song) => song.id === id);
       if (!track) return;
+
       setCurrentTrack(track);
       setPlayStatus(true);
 
       setTimeout(async () => {
         try {
-          await audioRef.current.play();
+          if (audioRef.current) await audioRef.current.play();
         } catch (error) {
-          console.log(error);
+          console.log("Play with ID Error:", error);
         }
       }, 200);
     },
-    [songsData],
+    [songsData]
   );
 
   const next = useCallback(() => {
     if (!currentTrack || songsData.length === 0) return;
+
     const currentIndex = songsData.findIndex(
-      (song) => song.id === currentTrack.id,
+      (song) => song.id === currentTrack.id
     );
+
     const nextIndex = (currentIndex + 1) % songsData.length;
     playWithId(songsData[nextIndex].id);
   }, [songsData, currentTrack, playWithId]);
 
   const previous = useCallback(() => {
     if (!currentTrack || songsData.length === 0) return;
+
     const currentIndex = songsData.findIndex(
-      (song) => song.id === currentTrack.id,
+      (song) => song.id === currentTrack.id
     );
+
     const prevIndex =
       currentIndex === 0 ? songsData.length - 1 : currentIndex - 1;
+
     playWithId(songsData[prevIndex].id);
   }, [songsData, currentTrack, playWithId]);
 
   const seekSong = useCallback((e) => {
     if (!audioRef.current) return;
+
     const width = e.currentTarget.offsetWidth;
     const clickX = e.nativeEvent.offsetX;
     const duration = audioRef.current.duration;
-    audioRef.current.currentTime = (clickX / width) * duration;
+
+    if (duration && !isNaN(duration)) {
+      audioRef.current.currentTime = (clickX / width) * duration;
+    }
   }, []);
 
   useEffect(() => {
