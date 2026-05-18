@@ -1,4 +1,11 @@
-import { createContext, useContext, useState, useRef, useEffect, useCallback } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+} from "react";
 
 const PlayerContext = createContext();
 
@@ -34,7 +41,9 @@ export const PlayerProvider = ({ children }) => {
     const fetchSongs = async () => {
       try {
         setLoading(true);
-        const response = await fetch("https://corsproxy.io/?https://api.deezer.com/chart");
+        const response = await fetch(
+          "https://corsproxy.io/?https://api.deezer.com/chart",
+        );
         const data = await response.json();
 
         const fallbackSongs = [
@@ -51,7 +60,10 @@ export const PlayerProvider = ({ children }) => {
           artist: track.artist?.name || "Unknown Artist",
           album: track.album?.title || "Unknown Album",
           duration: formatTime(track.duration),
-          artwork: track.album?.cover_big || track.album?.cover_medium || "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=500&q=80",
+          artwork:
+            track.album?.cover_big ||
+            track.album?.cover_medium ||
+            "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=500&q=80",
           preview: fallbackSongs[index % fallbackSongs.length],
         }));
 
@@ -69,7 +81,7 @@ export const PlayerProvider = ({ children }) => {
           setCurrentTrack(tracks[0]);
         }
       } catch (error) {
-        console.log("❌ Error:", error);
+        console.log("Error:", error);
         const demoSongs = [
           {
             id: 1,
@@ -77,8 +89,10 @@ export const PlayerProvider = ({ children }) => {
             artist: "Alan Walker",
             album: "Top Hits",
             duration: "03:20",
-            artwork: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=500&q=80",
-            preview: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+            artwork:
+              "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=500&q=80",
+            preview:
+              "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
           },
           {
             id: 2,
@@ -86,8 +100,10 @@ export const PlayerProvider = ({ children }) => {
             artist: "Dua Lipa",
             album: "Future Sounds",
             duration: "04:10",
-            artwork: "https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=500&q=80",
-            preview: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+            artwork:
+              "https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=500&q=80",
+            preview:
+              "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
           },
           {
             id: 3,
@@ -95,8 +111,10 @@ export const PlayerProvider = ({ children }) => {
             artist: "The Weeknd",
             album: "Chill Mix",
             duration: "02:58",
-            artwork: "https://images.unsplash.com/photo-1501612780327-45045538702b?w=500&q=80",
-            preview: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+            artwork:
+              "https://images.unsplash.com/photo-1501612780327-45045538702b?w=500&q=80",
+            preview:
+              "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
           },
         ];
         setSongsData(demoSongs);
@@ -104,7 +122,8 @@ export const PlayerProvider = ({ children }) => {
           {
             id: 1,
             title: "Today's Top Hits",
-            artwork: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=80",
+            artwork:
+              "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=80",
             description: "Trending Music Collection",
             songs: demoSongs,
           },
@@ -120,19 +139,24 @@ export const PlayerProvider = ({ children }) => {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentTrack) return;
-    audio.pause();
     audio.src = currentTrack.preview;
     audio.load();
 
     if (playStatus) {
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          console.log(err);
-        });
-      }
+      audio.play().catch((err) => console.log(err));
     }
-  }, [currentTrack, playStatus]);
+  }, [currentTrack]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !audio.src) return;
+
+    if (playStatus) {
+      audio.play().catch((err) => console.log(err));
+    } else {
+      audio.pause();
+    }
+  }, [playStatus]);
 
   const play = useCallback(async () => {
     try {
@@ -150,32 +174,40 @@ export const PlayerProvider = ({ children }) => {
     setPlayStatus(false);
   }, []);
 
-  const playWithId = useCallback(async (id) => {
-    const track = songsData.find((song) => song.id === id);
-    if (!track) return;
-    setCurrentTrack(track);
+  const playWithId = useCallback(
+    async (id) => {
+      const track = songsData.find((song) => song.id === id);
+      if (!track) return;
+      setCurrentTrack(track);
+      setPlayStatus(true);
 
-    setTimeout(async () => {
-      try {
-        await audioRef.current.play();
-        setPlayStatus(true);
-      } catch (error) {
-        console.log(error);
-      }
-    }, 200);
-  }, [songsData]);
+      setTimeout(async () => {
+        try {
+          await audioRef.current.play();
+        } catch (error) {
+          console.log(error);
+        }
+      }, 200);
+    },
+    [songsData],
+  );
 
   const next = useCallback(() => {
     if (!currentTrack || songsData.length === 0) return;
-    const currentIndex = songsData.findIndex((song) => song.id === currentTrack.id);
+    const currentIndex = songsData.findIndex(
+      (song) => song.id === currentTrack.id,
+    );
     const nextIndex = (currentIndex + 1) % songsData.length;
     playWithId(songsData[nextIndex].id);
   }, [songsData, currentTrack, playWithId]);
 
   const previous = useCallback(() => {
     if (!currentTrack || songsData.length === 0) return;
-    const currentIndex = songsData.findIndex((song) => song.id === currentTrack.id);
-    const prevIndex = currentIndex === 0 ? songsData.length - 1 : currentIndex - 1;
+    const currentIndex = songsData.findIndex(
+      (song) => song.id === currentTrack.id,
+    );
+    const prevIndex =
+      currentIndex === 0 ? songsData.length - 1 : currentIndex - 1;
     playWithId(songsData[prevIndex].id);
   }, [songsData, currentTrack, playWithId]);
 
@@ -233,6 +265,7 @@ export const PlayerProvider = ({ children }) => {
     changeVolume,
     seekSong,
     audioRef,
+    setCurrentTrack,
   };
 
   return (
